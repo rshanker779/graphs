@@ -1,10 +1,12 @@
-from typing import List, Set
+from typing import List, Set, Iterable, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
+from mixin import StringMixin
 
-class Node:
+
+class Node(StringMixin):
     _id = 0
 
     def __init__(self):
@@ -32,6 +34,15 @@ class Link:
         if not isinstance(other, self.__class__):
             return NotImplemented
         return (self.node_1, self.node_2) == (other.node_1, other.node_2)
+
+
+class PathReport:
+    def __init__(self, from_node: Node, to_node: Node, paths: List[Tuple[Node, ...]]):
+        self.from_node = from_node
+        self.to_node = to_node
+        self.is_possible = len(paths) > 0
+        self.paths = paths
+        self.distance = min(len(p) for p in paths) - 1 if paths else -1
 
 
 class Graph:
@@ -94,59 +105,21 @@ class Graph:
     def is_k_regular(self, k: int) -> bool:
         return set(self.degree_sequence) == {k}
 
+    def get_connections(self, node_1: Node, node_2: Node) -> PathReport:
 
-@pytest.fixture
-def nodes():
-    n1 = Node()
-    n2 = Node()
-    n3 = Node()
-    n4 = Node()
-    n5 = Node()
-    return [n1, n2, n3, n4, n5]
-
-
-@pytest.fixture
-def links(nodes):
-    n1, n2, n3, n4, n5 = nodes
-    link1 = Link(n1, n2)
-    link2 = Link(n2, n3)
-    link3 = Link(n3, n4)
-    link4 = Link(n4, n5)
-    return [link1, link2, link3, link4]
-
-
-@pytest.fixture
-def graph(nodes, links):
-    return Graph(nodes, links)
-
-
-def test_graph(nodes, links, graph):
-    assert graph.order == 5
-    assert graph.size == 4
-
-    n1, n2, n3, n4, n5 = nodes
-
-    assert graph.are_neighbours(n1, n2)
-    assert graph.are_neighbours(n3, n4)
-    assert not graph.are_neighbours(n1, n5)
-    assert not graph.are_neighbours(n2, n4)
-    assert graph.get_neighbourhood(n1) == {n2}
-    assert graph.get_neighbourhood(n2) == {n1, n3}
-    assert graph.get_degree(n2) == 2
-    assert sorted(graph.degree_sequence) == [1, 1, 2, 2, 2]
-    assert graph.maximum_degree == 2
-    assert graph.minimum_degree == 1
-    assert not graph.is_k_regular(1)
-    for node in nodes:
-        assert node in graph.nodes
-
-
-# if __name__ == '__main__':
-#
-#     link1=Link(n1, n2)
-#     link2=Link(n2, n3)
-#     link3=Link(n3, n4)
-#     link4=Link(n4, n5)
-#
-#     g = Graph([n1, n2, n3, n4, n5], [link1, link2, link3, link4])
-# g.plot_graph()
+        paths = [(node_1,)]
+        # We traverse breadth first to expand to all possible (acyclic) paths visiting unique points
+        # Note if we have Link(1,2) and Link(2,1), we would still only get the path 1,2.
+        # This is more about connectivity then full path enumeration
+        while True:
+            next_paths = paths
+            for *initial, p in paths:
+                next_steps = self.get_neighbourhood(p) - set(initial)
+                next_paths += [tuple([*initial, p, i]) for i in next_steps]
+            if len(next_paths) == len(paths):
+                paths = next_paths
+                break
+            paths = next_paths
+            print(paths)
+        paths_between = [i for i in paths if i[-1] == node_2]
+        return PathReport(node_1, node_2, paths_between)
