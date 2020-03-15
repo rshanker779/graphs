@@ -247,3 +247,7 @@ class Graph:
     @property
     def is_dag(self):
         return self.is_directed and not self.is_cyclic
+
+    @property
+    def is_eulerian(self):
+        return all(self.get_degree(node) % 2 == 0 for node in self.nodes)

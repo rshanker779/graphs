@@ -113,6 +113,7 @@ def test_line_graph(nodes, line_links, line_graph):
     assert set(nodes) in line_graph.connected_components
     assert line_graph.is_connected
     assert not line_graph.is_cyclic
+    assert not line_graph.is_eulerian
 
 
 def test_complete_graph(complete_graph, nodes):
@@ -136,6 +137,7 @@ def test_complete_graph(complete_graph, nodes):
     assert set(nodes) in complete_graph.connected_components
     assert complete_graph.is_connected
     assert complete_graph.is_cyclic
+    assert complete_graph.is_eulerian
 
 
 def test_disconnected_graph(disconnected_graph, nodes):
