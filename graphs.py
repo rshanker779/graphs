@@ -123,3 +123,28 @@ class Graph:
             print(paths)
         paths_between = [i for i in paths if i[-1] == node_2]
         return PathReport(node_1, node_2, paths_between)
+
+    def get_connected_component(self, node: Node) -> Set[Node]:
+
+        neighbourhood = self.get_neighbourhood(node) | {node}
+        processed_nodes = {node}
+        while neighbourhood != set(processed_nodes):
+            next_node = next(i for i in neighbourhood - processed_nodes)
+            neighbourhood |= self.get_neighbourhood(next_node)
+            processed_nodes |= {next_node}
+        return neighbourhood
+
+    @property
+    def connected_components(self) -> List[Set[Node]]:
+        processed_nodes = set()
+        components = []
+        while processed_nodes != self.nodes:
+            next_node = next(i for i in self.nodes - processed_nodes)
+            component = self.get_connected_component(next_node)
+            components.append(component)
+            processed_nodes |= component
+        return components
+
+    @property
+    def is_connected(self):
+        return len(self.connected_components) == 1
