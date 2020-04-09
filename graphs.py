@@ -3,46 +3,24 @@ from functools import reduce
 from typing import List, Set, Iterable, Tuple, Optional, FrozenSet
 import matplotlib.pyplot as plt
 import numpy as np
-import pytest
 from more_itertools import flatten
+import rshanker779_common as utils
 
-from mixin import StringMixin
 
-
-class Node(StringMixin):
+class Node(utils.StringMixin, utils.EqualsMixin):
     _id = 0
 
     def __init__(self):
         self.id = self.__class__._id
         self.__class__._id += 1
 
-    def __hash__(self):
-        return hash(self.id)
 
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        return self.id == other.id
-
-
-class Link(StringMixin):
+class Link(utils.StringMixin, utils.EqualsMixin):
     def __init__(self, node_1: Node, node_2: Node, is_directed: bool = False):
         super().__init__()
         self.node_1 = node_1
         self.node_2 = node_2
         self.is_directed = is_directed
-
-    def __hash__(self):
-        return hash((self.node_1, self.node_2, self.is_directed))
-
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        return (self.node_1, self.node_2, self.is_directed) == (
-            other.node_1,
-            other.node_2,
-            other.is_directed,
-        )
 
     @property
     def nodes(self) -> List[Node]:
@@ -66,7 +44,7 @@ class PathReport:
         self.distance = min(len(p) for p in paths) if paths else -1
 
 
-class Graph:
+class BaseGraph:
     def __init__(self, nodes: List[Node], links: List[Link]):
         self.nodes = set(nodes)
         assert all(i.is_directed for i in links) or all(
@@ -75,33 +53,17 @@ class Graph:
         self.is_directed = next(i.is_directed for i in links)
         self.links = set(links)
 
+
+class Graph(BaseGraph):
+    def __init__(self, nodes: List[Node], links: List[Link]):
+        super().__init__(nodes, links)
+        self.neighbouring_graph_properties = NeighbouringGraphProperties(self)
+        self.graph_plotting = GraphPlotting(self)
+        self.degree_properties = DegreeProperties(self)
+        self.dag_properties = DirectedAcyclicGraphProperties(self)
+
     def plot_graph(self):
-        n = len(self.nodes)
-        point_map = {i: j for i, j in enumerate(self.nodes)}
-        node_map = {j.id: self.get_roots_of_unity(i, n) for i, j in point_map.items()}
-        complex_repns = [self.get_roots_of_unity(k, n) for k in point_map]
-        plt.figure()
-        plt.scatter(
-            [np.real(i) for i in complex_repns], [np.imag(i) for i in complex_repns]
-        )
-        for link in self.links:
-            points = [node_map[link.node_1.id], node_map[link.node_2.id]]
-            x = [np.real(i) for i in points]
-            y = [np.imag(i) for i in points]
-            plt.plot(x, y, c="b")
-            if link.is_directed:
-                eps = 0.02
-                plt.arrow(
-                    x[-1],
-                    y[-1],
-                    eps * (x[-1] - x[0]),
-                    eps * (y[-1] - y[0]),
-                    shape="full",
-                    lw=0,
-                    length_includes_head=True,
-                    head_width=0.05,
-                )
-        plt.show()
+        return self.graph_plotting.plot_graph()
 
     @property
     def order(self) -> int:
@@ -112,50 +74,34 @@ class Graph:
         return len(self.links)
 
     def find_link(self, node_1, node_2) -> Optional[Link]:
-        forward_link = Link(node_1, node_2, self.is_directed)
-        if forward_link in self.links:
-            return forward_link
-        backwards_link = Link(node_2, node_1)
-        if backwards_link in self.links:
-            return backwards_link
-
-    def get_roots_of_unity(self, k, n) -> complex:
-        return np.exp(2 * np.pi * 1j * k / n)
+        return self.neighbouring_graph_properties.find_link(node_1, node_2)
 
     def is_in_graph(self, node: Node) -> bool:
-        return node in self.nodes
+        return self.neighbouring_graph_properties.is_in_graph(node)
 
     def are_neighbours(self, node_1: Node, node_2: Node) -> bool:
-        """Returns if there is a length one path between node_1 and node_2"""
-        return self.find_link(node_1, node_2) is not None
+        return self.neighbouring_graph_properties.are_neighbours(node_1, node_2)
 
     def get_neighbourhood(self, node: Node) -> Set[Node]:
-        matching_links = [
-            self.find_link(node, n)
-            for n in self.nodes
-            if self.find_link(node, n) is not None
-        ]
-        return (
-            {l.node_1 for l in matching_links} | {l.node_2 for l in matching_links}
-        ) - {node}
+        return self.neighbouring_graph_properties.get_neighbourhood(node)
 
     def get_degree(self, node: Node) -> int:
-        return len(self.get_neighbourhood(node))
+        return self.degree_properties.get_degree(node)
 
     @property
     def degree_sequence(self) -> List[int]:
-        return [self.get_degree(n) for n in self.nodes]
+        return self.degree_properties.degree_sequence
 
     @property
     def maximum_degree(self) -> int:
-        return max(self.get_degree(n) for n in self.nodes)
+        return self.degree_properties.maximum_degree
 
     @property
     def minimum_degree(self) -> int:
-        return min(self.get_degree(n) for n in self.nodes)
+        return self.degree_properties.minimum_degree
 
     def is_k_regular(self, k: int) -> bool:
-        return set(self.degree_sequence) == {k}
+        return self.degree_properties.is_k_regular(k)
 
     def get_paths(self, node_1: Node, node_2: Node) -> PathReport:
 
@@ -190,7 +136,6 @@ class Graph:
                 paths = next_paths
                 break
             paths = next_paths
-            print(paths)
         paths_between = [i for i in paths if i[-1].node_2 == node_2]
         return PathReport(node_1, node_2, paths_between)
 
@@ -251,3 +196,122 @@ class Graph:
     @property
     def is_eulerian(self):
         return all(self.get_degree(node) % 2 == 0 for node in self.nodes)
+
+    @property
+    def dependency_chain(self):
+        if self.is_dag:
+            return self.dag_properties.dependency_chain
+        return []
+
+
+class BaseGraphProperties:
+    def __init__(self, graph: BaseGraph):
+        self.graph = graph
+        self.links = self.graph.links
+        self.nodes = self.graph.nodes
+        self.is_directed = self.graph.is_directed
+
+
+class NeighbouringGraphProperties(BaseGraphProperties):
+    def find_link(self, node_1: Node, node_2: Node):
+        forward_link = Link(node_1, node_2, self.is_directed)
+        if forward_link in self.links:
+            return forward_link
+        backwards_link = Link(node_2, node_1)
+        if backwards_link in self.links:
+            return backwards_link
+
+    def is_in_graph(self, node: Node) -> bool:
+        return node in self.nodes
+
+    def are_neighbours(self, node_1: Node, node_2: Node) -> bool:
+        """Returns if there is a length one path between node_1 and node_2"""
+        return self.find_link(node_1, node_2) is not None
+
+    def get_neighbourhood(self, node: Node) -> Set[Node]:
+        matching_links = [
+            self.find_link(node, n)
+            for n in self.nodes
+            if self.find_link(node, n) is not None
+        ]
+        return (
+            {l.node_1 for l in matching_links} | {l.node_2 for l in matching_links}
+        ) - {node}
+
+
+class DegreeProperties(BaseGraphProperties):
+    def __init__(self, graph: BaseGraph):
+        super().__init__(graph)
+        self.neighbouring_graph_properties = NeighbouringGraphProperties(graph)
+
+    def get_degree(self, node: Node) -> int:
+        return len(self.neighbouring_graph_properties.get_neighbourhood(node))
+
+    @property
+    def degree_sequence(self) -> List[int]:
+        return [self.get_degree(n) for n in self.nodes]
+
+    @property
+    def maximum_degree(self) -> int:
+        return max(self.get_degree(n) for n in self.nodes)
+
+    @property
+    def minimum_degree(self) -> int:
+        return min(self.get_degree(n) for n in self.nodes)
+
+    def is_k_regular(self, k: int) -> bool:
+        return set(self.degree_sequence) == {k}
+
+
+class GraphPlotting(BaseGraphProperties):
+    def plot_graph(self):
+        n = len(self.nodes)
+        point_map = {i: j for i, j in enumerate(self.nodes)}
+        node_map = {j.id: self._get_roots_of_unity(i, n) for i, j in point_map.items()}
+        complex_repns = [self._get_roots_of_unity(k, n) for k in point_map]
+        plt.figure()
+        plt.scatter(
+            [np.real(i) for i in complex_repns], [np.imag(i) for i in complex_repns]
+        )
+        for link in self.links:
+            points = [node_map[link.node_1.id], node_map[link.node_2.id]]
+            x = [np.real(i) for i in points]
+            y = [np.imag(i) for i in points]
+            plt.plot(x, y, c="b")
+            if link.is_directed:
+                eps = 0.02
+                plt.arrow(
+                    x[-1],
+                    y[-1],
+                    eps * (x[-1] - x[0]),
+                    eps * (y[-1] - y[0]),
+                    shape="full",
+                    lw=0,
+                    length_includes_head=True,
+                    head_width=0.05,
+                )
+        plt.show()
+
+    @staticmethod
+    def _get_roots_of_unity(k, n) -> complex:
+        return np.exp(2 * np.pi * 1j * k / n)
+
+
+class DirectedAcyclicGraphProperties(BaseGraphProperties):
+    def __init__(self, graph: BaseGraph):
+        super().__init__(graph)
+        self.neighbouring_graph_properties = NeighbouringGraphProperties(graph)
+
+    @property
+    def dependency_chain(self) -> List[Node]:
+        chain = []
+        processed_nodes = set()
+        while processed_nodes != self.nodes:
+            for node in self.nodes - processed_nodes:
+                neighbourhood = self.neighbouring_graph_properties.get_neighbourhood(
+                    node
+                )
+                if not neighbourhood - processed_nodes:
+                    chain.append(node)
+                    processed_nodes.add(node)
+        return chain
