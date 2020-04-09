@@ -1,0 +1,11 @@
+*.vscode*
+*.idea*
+*__pycache__*
+*.pyc
+build/*
+dist/*
+*.egg-info/*
+.coverage
+*config.json*
+*.pkl
+htmlcov/*
