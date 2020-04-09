@@ -8,7 +8,7 @@ except:
     long_description = None
 setup(
     name="graphs",
-    version="1.0.0",
+    version="0.0.1",
     author="rshanker779",
     author_email="rshanker779@gmail.com",
     description="Graph theory in Python",
