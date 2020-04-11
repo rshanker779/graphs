@@ -1,5 +1,7 @@
 # Graphs
 
+[![Build Status](https://travis-ci.com/rshanker779/graphs.svg?token=mkYdbtmrXLBNV4N9yB9T&branch=master)](https://travis-ci.com/rshanker779/graphs)
+
 Graph theory in Python
 
 Construct a graph object by building up links and nodes
