@@ -1,69 +1,44 @@
 import operator
 from functools import reduce
-from typing import List, Set, Iterable, Tuple, Optional, FrozenSet
+from typing import Dict, Iterable, Hashable
+from typing import List, Set, Tuple, Optional, FrozenSet
+
 import matplotlib.pyplot as plt
-import numpy as np
 from more_itertools import flatten
-import rshanker779_common as utils
 
-
-class Node(utils.StringMixin, utils.EqualsMixin):
-    _id = 0
-
-    def __init__(self):
-        self.id = self.__class__._id
-        self.__class__._id += 1
-
-
-class Link(utils.StringMixin, utils.EqualsMixin):
-    def __init__(self, node_1: Node, node_2: Node, is_directed: bool = False):
-        super().__init__()
-        self.node_1 = node_1
-        self.node_2 = node_2
-        self.is_directed = is_directed
-
-    @property
-    def nodes(self) -> List[Node]:
-        return [self.node_1, self.node_2]
-
-
-class PathLink(Link):
-    def __init__(self, node_1, node_2, underlying_link):
-        super().__init__(node_1, node_2, True)
-        self.underlying_link = underlying_link
-
-
-class PathReport:
-    def __init__(
-        self, from_node: Node, to_node: Node, paths: List[Tuple[PathLink, ...]]
-    ):
-        self.from_node = from_node
-        self.to_node = to_node
-        self.is_possible = len(paths) > 0
-        self.paths = paths
-        self.distance = min(len(p) for p in paths) if paths else -1
-
-
-class BaseGraph:
-    def __init__(self, nodes: List[Node], links: List[Link]):
-        self.nodes = set(nodes)
-        assert all(i.is_directed for i in links) or all(
-            not i.is_directed for i in links
-        )
-        self.is_directed = next(i.is_directed for i in links)
-        self.links = set(links)
+from graphs.data_structures.basic_structures import Node, Link
+from graphs.data_structures.graphs import BaseGraph
+from graphs.data_structures.paths import PathLink, PathReport
+from graphs.graph_builder import GraphBuilder
+from graphs.graph_properties import (
+    NeighbouringGraphProperties,
+    DegreeProperties,
+    DirectedAcyclicGraphProperties,
+)
+from graphs.plots import GraphPlotter
 
 
 class Graph(BaseGraph):
+    @classmethod
+    def from_base_graph(cls, graph: BaseGraph):
+        return cls(graph.nodes, graph.links)
+
+    @classmethod
+    def from_graph_dictionary(
+        cls, graph_dictionary: Dict[Hashable, Iterable[Hashable]], is_directed: bool
+    ):
+        base_graph = GraphBuilder.from_graph_dictionary(graph_dictionary, is_directed)
+        return cls.from_base_graph(base_graph)
+
     def __init__(self, nodes: List[Node], links: List[Link]):
         super().__init__(nodes, links)
         self.neighbouring_graph_properties = NeighbouringGraphProperties(self)
-        self.graph_plotting = GraphPlotting(self)
+        self.plotter = GraphPlotter(self)
         self.degree_properties = DegreeProperties(self)
         self.dag_properties = DirectedAcyclicGraphProperties(self)
 
-    def plot_graph(self):
-        return self.graph_plotting.plot_graph()
+    def plot_graph(self) -> plt.Figure:
+        return self.plotter.plot_graph()
 
     @property
     def order(self) -> int:
@@ -202,116 +177,3 @@ class Graph(BaseGraph):
         if self.is_dag:
             return self.dag_properties.dependency_chain
         return []
-
-
-class BaseGraphProperties:
-    def __init__(self, graph: BaseGraph):
-        self.graph = graph
-        self.links = self.graph.links
-        self.nodes = self.graph.nodes
-        self.is_directed = self.graph.is_directed
-
-
-class NeighbouringGraphProperties(BaseGraphProperties):
-    def find_link(self, node_1: Node, node_2: Node):
-        forward_link = Link(node_1, node_2, self.is_directed)
-        if forward_link in self.links:
-            return forward_link
-        backwards_link = Link(node_2, node_1)
-        if backwards_link in self.links:
-            return backwards_link
-
-    def is_in_graph(self, node: Node) -> bool:
-        return node in self.nodes
-
-    def are_neighbours(self, node_1: Node, node_2: Node) -> bool:
-        """Returns if there is a length one path between node_1 and node_2"""
-        return self.find_link(node_1, node_2) is not None
-
-    def get_neighbourhood(self, node: Node) -> Set[Node]:
-        matching_links = [
-            self.find_link(node, n)
-            for n in self.nodes
-            if self.find_link(node, n) is not None
-        ]
-        return (
-            {l.node_1 for l in matching_links} | {l.node_2 for l in matching_links}
-        ) - {node}
-
-
-class DegreeProperties(BaseGraphProperties):
-    def __init__(self, graph: BaseGraph):
-        super().__init__(graph)
-        self.neighbouring_graph_properties = NeighbouringGraphProperties(graph)
-
-    def get_degree(self, node: Node) -> int:
-        return len(self.neighbouring_graph_properties.get_neighbourhood(node))
-
-    @property
-    def degree_sequence(self) -> List[int]:
-        return [self.get_degree(n) for n in self.nodes]
-
-    @property
-    def maximum_degree(self) -> int:
-        return max(self.get_degree(n) for n in self.nodes)
-
-    @property
-    def minimum_degree(self) -> int:
-        return min(self.get_degree(n) for n in self.nodes)
-
-    def is_k_regular(self, k: int) -> bool:
-        return set(self.degree_sequence) == {k}
-
-
-class GraphPlotting(BaseGraphProperties):
-    def plot_graph(self):
-        n = len(self.nodes)
-        point_map = {i: j for i, j in enumerate(self.nodes)}
-        node_map = {j.id: self._get_roots_of_unity(i, n) for i, j in point_map.items()}
-        complex_repns = [self._get_roots_of_unity(k, n) for k in point_map]
-        plt.figure()
-        plt.scatter(
-            [np.real(i) for i in complex_repns], [np.imag(i) for i in complex_repns]
-        )
-        for link in self.links:
-            points = [node_map[link.node_1.id], node_map[link.node_2.id]]
-            x = [np.real(i) for i in points]
-            y = [np.imag(i) for i in points]
-            plt.plot(x, y, c="b")
-            if link.is_directed:
-                eps = 0.02
-                plt.arrow(
-                    x[-1],
-                    y[-1],
-                    eps * (x[-1] - x[0]),
-                    eps * (y[-1] - y[0]),
-                    shape="full",
-                    lw=0,
-                    length_includes_head=True,
-                    head_width=0.05,
-                )
-        plt.show()
-
-    @staticmethod
-    def _get_roots_of_unity(k, n) -> complex:
-        return np.exp(2 * np.pi * 1j * k / n)
-
-
-class DirectedAcyclicGraphProperties(BaseGraphProperties):
-    def __init__(self, graph: BaseGraph):
-        super().__init__(graph)
-        self.neighbouring_graph_properties = NeighbouringGraphProperties(graph)
-
-    @property
-    def dependency_chain(self) -> List[Node]:
-        chain = []
-        processed_nodes = set()
-        while processed_nodes != self.nodes:
-            for node in self.nodes - processed_nodes:
-                neighbourhood = self.neighbouring_graph_properties.get_neighbourhood(
-                    node
-                )
-                if not neighbourhood - processed_nodes:
-                    chain.append(node)
-                    processed_nodes.add(node)
-        return chain

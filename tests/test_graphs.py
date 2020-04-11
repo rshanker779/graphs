@@ -1,82 +1,29 @@
-import pytest
-from graphs.graphs import Node, Link, Graph, PathLink
 from itertools import combinations
 
 from pytest_cases import parametrize_plus, fixture_ref
 
-
-@pytest.fixture
-def nodes():
-    n1 = Node()
-    n2 = Node()
-    n3 = Node()
-    n4 = Node()
-    n5 = Node()
-    return [n1, n2, n3, n4, n5]
-
-
-@pytest.fixture
-def line_links(nodes):
-    n1, n2, n3, n4, n5 = nodes
-    link1 = Link(n1, n2)
-    link2 = Link(n2, n3)
-    link3 = Link(n3, n4)
-    link4 = Link(n4, n5)
-    return [link1, link2, link3, link4]
+from graphs import Link, PathLink
+from tests.conftest import (
+    line_graph,
+    complete_graph,
+    disconnected_graph,
+    directed_graph,
+    cyclic_directed_graph,
+)
 
 
-@pytest.fixture
-def complete_links(nodes):
-    pairs = combinations(nodes, 2)
-    return [Link(i, j) for i, j in pairs]
-
-
-@pytest.fixture
-def disconnected_links(nodes):
-    n1, n2, n3, n4, n5 = nodes
-    return [Link(n1, n2), Link(n3, n4)]
-
-
-@pytest.fixture
-def directed_links(nodes):
-    n1, n2, n3, n4, n5 = nodes
-    return [
-        Link(n1, n2, True),
-        Link(n2, n3, True),
-        Link(n1, n4, True),
-        Link(n4, n5, True),
-    ]
-
-
-@pytest.fixture
-def cyclic_directed_links(nodes):
-    n1, n2, n3, n4, n5 = nodes
-    return [Link(n1, n2, True), Link(n2, n3, True), Link(n3, n1, True)]
-
-
-@pytest.fixture
-def line_graph(nodes, line_links):
-    return Graph(nodes, line_links)
-
-
-@pytest.fixture
-def complete_graph(nodes, complete_links):
-    return Graph(nodes, complete_links)
-
-
-@pytest.fixture
-def disconnected_graph(nodes, disconnected_links):
-    return Graph(nodes, disconnected_links)
-
-
-@pytest.fixture
-def directed_graph(nodes, directed_links):
-    return Graph(nodes, directed_links)
-
-
-@pytest.fixture
-def cyclic_directed_graph(nodes, cyclic_directed_links):
-    return Graph(nodes, cyclic_directed_links)
+@parametrize_plus(
+    "graph",
+    [
+        fixture_ref(line_graph),
+        fixture_ref(complete_graph),
+        fixture_ref(disconnected_graph),
+        fixture_ref(directed_graph),
+        fixture_ref(cyclic_directed_graph),
+    ],
+)
+def test_is_in_nodes(nodes, graph):
+    assert all(graph.is_in_graph(node) for node in nodes)
 
 
 @parametrize_plus(
@@ -258,32 +205,31 @@ def test_global_properties(
 
 
 @parametrize_plus(
-    "graph,expected_chain",
+    "graph,expected_chains",
     [
         (fixture_ref(line_graph), []),
         (fixture_ref(complete_graph), []),
         (fixture_ref(disconnected_graph), []),
-        (
-            fixture_ref(directed_graph),
-            [[2, 4, 1, 3, 0], [2, 4, 3, 1, 0], [4, 2, 1, 3, 0], [4, 2, 3, 1, 0]],
-        ),
+        (fixture_ref(directed_graph), [[4, 3, 0], [2, 1, 0]]),
         (fixture_ref(cyclic_directed_graph), []),
     ],
 )
-def test_dag_dependency_chain(nodes, graph, expected_chain):
+def test_dag_dependency_chain(nodes, graph, expected_chains):
     chain = graph.dependency_chain
     if chain:
-        assert graph.dependency_chain in [
-            list(map(lambda x: nodes[x], i)) for i in expected_chain
-        ]
+        for expected_chain in expected_chains:
+            expected_nodes = list(map(lambda x: nodes[x], expected_chain))
+            sub_list = [i for i in chain if i in expected_nodes]
+            assert sub_list == expected_nodes
     else:
-        assert chain == expected_chain
+        assert chain == expected_chains
 
 
 def test_line_graph(nodes, line_links, line_graph):
 
     for node in nodes:
         assert line_graph.get_connected_component(node) == set(nodes)
+        assert line_graph.is_in_graph(node)
     assert set(nodes) in line_graph.connected_components
 
 

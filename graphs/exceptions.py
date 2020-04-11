@@ -1,0 +1,2 @@
+class InvalidDictionaryException(Exception):
+    pass
