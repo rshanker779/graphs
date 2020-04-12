@@ -1,0 +1,13 @@
+{
+    "template": "https://github.com/rshanker779/cookie-cutter-rshanker779.git",
+    "commit": "c6207966c10a921bf76cec2fb675276422c8f700",
+    "context": {
+        "cookiecutter": {
+            "project_name": "graphs",
+            "author": "rshanker779",
+            "email": "rshanker779@gmail.com",
+            "description": "Graph theory in python",
+            "_template": "https://github.com/rshanker779/cookie-cutter-rshanker779.git"
+        }
+    }
+}

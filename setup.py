@@ -1,9 +1,9 @@
+import pathlib
+
 from setuptools import setup, find_packages
-import os
 
 try:
-    with open(os.path.join(os.path.dirname(__file__)), "README.md") as f:
-        long_description = f.read()
+    long_description = (pathlib.Path(__file__).parent / "README.md").read_text()
 except:
     long_description = None
 setup(
@@ -26,5 +26,4 @@ setup(
     ],
     packages=find_packages(),
     entry_points={},
-    test_suite="graphs/tests",
 )
